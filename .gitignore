@@ -1,15 +1,44 @@
-# Virtual environment
-venv/
-env/
-.venv/
+# ===============================
+# IGNORE PYTHON / CONDA RUNTIME
+# ===============================
+Lib/
+Library/
+Scripts/
+DLLs/
+Tools/
+conda-meta/
+include/
+libs/
+share/
+etc/
 
-# Python cache
+# Python executables & DLLs
+python.exe
+pythonw.exe
+python*.dll
+*.dll
+*.pdb
+
+# ===============================
+# VIRTUAL ENV / CACHE
+# ===============================
 __pycache__/
 *.pyc
+*.pyo
 
-# Environment variables
+# ===============================
+# ENV FILES
+# ===============================
 .env
 
-# OS files
-.DS_Store
+# ===============================
+# OS FILES
+# ===============================
 Thumbs.db
+.DS_Store
+
+# ===============================
+# OPTIONAL: IGNORE PDF (remove if needed)
+# ===============================
+# *.pdf
+

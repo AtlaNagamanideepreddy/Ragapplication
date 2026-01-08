@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aura | Macro Intelligence</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050511; font-family: 'Space Grotesk', sans-serif; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); }
+        ::-webkit-scrollbar-thumb { background: rgba(139, 92, 246, 0.5); border-radius: 10px; }
+
+        /* Panels */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(30px);
+            border-left: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .dashboard-container {
+            background: rgba(5, 5, 12, 0.98);
+            backdrop-filter: blur(25px);
+            border-top: 2px solid rgba(139, 92, 246, 0.4);
+            box-shadow: 0 -20px 80px rgba(0,0,0,0.9);
+        }
+
+        /* Data Cards */
+        .info-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(139, 92, 246, 0.3);
+            border-radius: 24px;
+            padding: 32px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: inset 0 0 40px rgba(139, 92, 246, 0.05);
+        }
+
+        .stat-grid-item {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            padding: 20px;
+        }
+
+        /* Export Tags */
+        .export-tag {
+            background: rgba(139, 92, 246, 0.2);
+            border: 1px solid rgba(139, 92, 246, 0.5);
+            color: #f3e8ff;
+            font-size: 14px;
+            font-weight: 800;
+            padding: 10px 16px;
+            border-radius: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* Graph Styles */
+        .axis-line { stroke: rgba(255, 255, 255, 0.2); stroke-width: 2; }
+        .grid-line { stroke: rgba(255, 255, 255, 0.05); stroke-width: 1; stroke-dasharray: 5,5; }
+        .axis-text { fill: rgba(255, 255, 255, 0.4); font-size: 10px; font-weight: 600; text-anchor: middle; }
+        
+        .path-anim {
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: dash 2.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        
+        .area-anim {
+            opacity: 0;
+            animation: fadeInArea 2s ease-out 0.5s forwards;
+        }
+
+        @keyframes dash { to { stroke-dashoffset: 0; } }
+        @keyframes fadeInArea { to { opacity: 1; } }
+
+        /* Chat Bubbles */
+        .chat-bubble-ai {
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 20px 20px 20px 0;
+        }
+        
+        .chat-bubble-user {
+            background: rgba(139, 92, 246, 0.25); 
+            border: 1px solid rgba(139, 92, 246, 0.4);
+            border-radius: 20px 20px 0 20px;
+        }
+
+        .text-glow { text-shadow: 0 0 30px rgba(139, 92, 246, 0.6); }
+        .text-glow-white { text-shadow: 0 0 20px rgba(255, 255, 255, 0.3); }
+
+        .loading-dots::after {
+            content: '...';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+        @keyframes dots { 0% { content: '.'; } 40% { content: '..'; } 60% { content: '...'; } }
+    </style>
+</head>
+<body class="text-white flex h-screen w-screen overflow-hidden cursor-default font-sans">
+
+    <div class="flex flex-col w-[55%] h-full relative z-10">
+        
+        <div class="absolute top-10 left-12 z-20 pointer-events-none">
+            <h1 class="text-6xl font-black tracking-widest flex items-center gap-5">
+                <div class="w-6 h-6 bg-purple-500 rounded-full shadow-[0_0_30px_#8B5CF6] animate-pulse"></div>
+                AURA
+            </h1>
+            <p class="text-gray-400 text-sm font-bold tracking-[0.5em] ml-2 mt-2 uppercase">Global Economic Node</p>
+        </div>
+
+        <div id="canvas-container" class="w-full h-[55%] relative z-0"></div>
+
+        <div class="w-full h-[45%] dashboard-container px-12 py-10 relative z-20">
+            
+            <div id="empty-state" class="flex flex-col items-center justify-center h-full text-gray-400">
+                <div class="w-20 h-20 rounded-full border-4 border-dashed border-purple-500/50 flex items-center justify-center mb-6 animate-spin-slow">
+                    <div class="w-6 h-6 bg-purple-500 rounded-full shadow-[0_0_20px_#8B5CF6]"></div>
+                </div>
+                <p class="text-base tracking-[0.2em] uppercase text-purple-200 font-bold">Select a Node to Initialize</p>
+            </div>
+
+            <div id="country-data" class="hidden h-full w-full flex gap-10 animate-[fadeIn_0.3s_ease-out]">
+                
+                <div class="w-[60%] info-card">
+                    <div class="flex justify-between items-start border-b border-white/20 pb-6 mb-4">
+                        <div>
+                            <p id="data-region" class="text-purple-400 text-lg font-bold uppercase tracking-widest mb-1">Region</p>
+                            <h2 id="data-name" class="text-8xl font-black text-white tracking-tight leading-none text-glow-white">Country</h2>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-sm text-gray-400 uppercase tracking-widest font-bold mb-2">GDP Projection (2025)</p>
+                            <p id="data-gdp" class="text-6xl font-bold text-white text-glow leading-none">--</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-6 h-full items-center">
+                        <div class="stat-grid-item">
+                            <p class="text-sm text-gray-400 uppercase font-bold tracking-wider">Growth</p>
+                            <p id="data-growth" class="text-5xl font-bold mt-2 text-white">--</p>
+                        </div>
+                        <div class="stat-grid-item">
+                            <p class="text-sm text-gray-400 uppercase font-bold tracking-wider">Rank</p>
+                            <p id="data-rank" class="text-5xl font-bold text-white mt-2">#--</p>
+                        </div>
+                        <div class="stat-grid-item border border-purple-500/40 bg-purple-500/10">
+                            <p class="text-sm text-purple-300 uppercase font-bold tracking-wider">Global Share</p>
+                            <div class="w-full bg-gray-800 h-6 rounded-full mt-4 overflow-hidden border border-white/10">
+                                <div id="data-bar" class="bg-purple-500 h-full rounded-full w-0 transition-all duration-1000 shadow-[0_0_20px_#a855f7]"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="w-[40%] info-card relative overflow-hidden">
+                    
+                    <div class="h-[60%] w-full relative">
+                        <p class="text-sm text-gray-400 uppercase tracking-widest font-bold mb-2 absolute top-0 left-0">5-Year Trend</p>
+                        
+                        <svg id="trend-graph" width="100%" height="100%" viewBox="0 0 300 150" preserveAspectRatio="none" class="overflow-visible mt-6">
+                            <defs>
+                                <linearGradient id="greenGradient" x1="0" x2="0" y1="0" y2="1">
+                                    <stop offset="0%" stop-color="#4ade80" stop-opacity="0.4" />
+                                    <stop offset="100%" stop-color="#4ade80" stop-opacity="0" />
+                                </linearGradient>
+                                <linearGradient id="redGradient" x1="0" x2="0" y1="0" y2="1">
+                                    <stop offset="0%" stop-color="#ef4444" stop-opacity="0.4" />
+                                    <stop offset="100%" stop-color="#ef4444" stop-opacity="0" />
+                                </linearGradient>
+                            </defs>
+
+                            <line x1="30" y1="30" x2="300" y2="30" class="grid-line" />
+                            <line x1="30" y1="60" x2="300" y2="60" class="grid-line" />
+                            <line x1="30" y1="90" x2="300" y2="90" class="grid-line" />
+
+                            <line x1="30" y1="10" x2="30" y2="120" class="axis-line" /> <line x1="30" y1="120" x2="300" y2="120" class="axis-line" /> <text x="30" y="140" class="axis-text">2021</text>
+                            <text x="90" y="140" class="axis-text">2022</text>
+                            <text x="150" y="140" class="axis-text">2023</text>
+                            <text x="210" y="140" class="axis-text">2024</text>
+                            <text x="270" y="140" class="axis-text">2025</text>
+
+                            <path id="trend-area" d="" class="area-anim" fill="url(#greenGradient)" />
+                            
+                            <path id="trend-path" d="" fill="none" stroke="#4ade80" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" class="path-anim filter drop-shadow-[0_0_10px_rgba(74,222,128,0.5)]" />
+                            
+                            <circle id="dot1" cx="30" cy="0" r="4" fill="white" class="opacity-0 animate-[fadeIn_0.5s_0.8s_forwards]" />
+                            <circle id="dot2" cx="90" cy="0" r="4" fill="white" class="opacity-0 animate-[fadeIn_0.5s_1.0s_forwards]" />
+                            <circle id="dot3" cx="150" cy="0" r="4" fill="white" class="opacity-0 animate-[fadeIn_0.5s_1.2s_forwards]" />
+                            <circle id="dot4" cx="210" cy="0" r="4" fill="white" class="opacity-0 animate-[fadeIn_0.5s_1.4s_forwards]" />
+                            <circle id="dot5" cx="270" cy="0" r="4" fill="white" class="opacity-0 animate-[fadeIn_0.5s_1.6s_forwards]" />
+                        </svg>
+                    </div>
+
+                    <div class="mt-auto">
+                        <p class="text-sm text-gray-400 uppercase tracking-widest font-bold mb-4">Key Exports</p>
+                        <div id="export-container" class="flex flex-wrap gap-3">
+                            </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="w-[45%] h-full glass-panel flex flex-col relative z-20 border-l border-white/10">
+        <div id="chat-box" class="flex-1 overflow-y-auto p-12 space-y-10">
+            <div class="flex flex-col items-start max-w-[90%]">
+                <span class="text-purple-400 text-sm font-bold mb-3 ml-1 tracking-widest">AURA AI</span>
+                <div class="chat-bubble-ai p-8 text-2xl text-gray-200 leading-relaxed shadow-lg">
+                    I am your AI assistant. 
+                    <br><br>
+                    Real-time market charts enabled. Click any <span class="text-purple-400 font-bold">Violet Node</span> to see detailed analytics.
+                </div>
+            </div>
+        </div>
+
+        <div class="p-12 border-t border-white/10 bg-[#050511]/60 backdrop-blur-md">
+            <form id="chat-form" class="relative flex items-center">
+                <input type="text" id="user-input" placeholder="Ask about economic data..." class="w-full bg-white/5 border border-white/10 rounded-2xl py-8 px-10 text-2xl text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/50 focus:bg-white/10 transition-all shadow-inner" autocomplete="off">
+                <button type="submit" id="send-btn" class="absolute right-6 p-5 bg-purple-600 hover:bg-purple-500 rounded-xl text-white transition-transform hover:scale-105 shadow-xl shadow-purple-500/40">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // --- DATASET ---
+        // Added trend points [y1, y2, y3, y4, y5] relative to 120px height
+        const countryData = [
+            [37.09, -95.71, "United States", "$26.9 T", "+2.5%", 1, "North America", 5.5, "100%", ["Tech", "Oil", "Vehicles"], [90, 85, 80, 40, 20]],
+            [35.86, 104.19, "China", "$17.7 T", "+5.2%", 2, "East Asia", 4.5, "90%", ["Electronics", "Textiles"], [100, 80, 60, 30, 10]],
+            [51.16, 10.45, "Germany", "$4.4 T", "-0.3%", 3, "Europe", 3.0, "30%", ["Vehicles", "Chemicals"], [60, 50, 70, 90, 100]],
+            [20.59, 78.96, "India", "$3.7 T", "+7.3%", 5, "South Asia", 2.8, "28%", ["Software", "Petroleum"], [110, 90, 70, 40, 5]],
+            // Add more as needed... (Keeping it short for code length, but logic handles any array)
+        ];
+
+        // --- THREE.JS SETUP ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050511, 0.015); 
+        
+        // CAMERA: Set for 7.0 Globe Radius
+        const camera = new THREE.PerspectiveCamera(45, (window.innerWidth * 0.55) / (window.innerHeight * 0.55), 0.1, 1000);
+        camera.position.z = 32; 
+        camera.position.y = 0;
+
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth * 0.55, window.innerHeight * 0.55);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const globeGroup = new THREE.Group();
+        scene.add(globeGroup);
+
+        // --- GLOBE (RADIUS 7.0) ---
+        const textureLoader = new THREE.TextureLoader();
+        const earthTexture = textureLoader.load('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_specular_2048.jpg');
+        
+        const globeGeo = new THREE.SphereGeometry(7.0, 64, 64);
+        const globeMat = new THREE.MeshBasicMaterial({ 
+            color: 0x2DD4BF, alphaMap: earthTexture, transparent: true, opacity: 0.85, side: THREE.FrontSide, blending: THREE.AdditiveBlending 
+        });
+        const globe = new THREE.Mesh(globeGeo, globeMat);
+        globeGroup.add(globe);
+
+        const gridGeo = new THREE.SphereGeometry(7.1, 64, 64);
+        const gridMat = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true, transparent: true, opacity: 0.1 });
+        const grid = new THREE.Mesh(gridGeo, gridMat);
+        globeGroup.add(grid);
+
+        const coreGeo = new THREE.SphereGeometry(6.9, 32, 32);
+        const coreMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const core = new THREE.Mesh(coreGeo, coreMat);
+        globeGroup.add(core);
+
+        // --- POLES ---
+        const poles = []; 
+
+        function latLonToVector3(lat, lon, radius) {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = (lon + 180) * (Math.PI / 180);
+            const x = -(radius * Math.sin(phi) * Math.cos(theta));
+            const z = (radius * Math.sin(phi) * Math.sin(theta));
+            const y = (radius * Math.cos(phi));
+            return new THREE.Vector3(x, y, z);
+        }
+
+        countryData.forEach((data) => {
+            const [lat, lon, name, gdp, growth, rank, region, heightScale, barWidth, exports, trendPoints] = data;
+            
+            const height = heightScale * 0.9;
+            const geometry = new THREE.CylinderGeometry(0.2, 0.2, height, 8);
+            geometry.translate(0, height / 2, 0); 
+            
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0x8B5CF6, 
+                transparent: true, 
+                opacity: 0.8 
+            });
+            
+            const pole = new THREE.Mesh(geometry, material);
+            const position = latLonToVector3(lat, lon, 7.0); 
+            pole.position.copy(position);
+            pole.lookAt(new THREE.Vector3(0,0,0));
+            pole.rotateX(Math.PI / 2);
+            
+            // Pass default trend points if none provided
+            const safeTrend = trendPoints || [100, 80, 60, 40, 20]; 
+            pole.userData = { name, gdp, growth, rank, region, barWidth, exports, safeTrend };
+            
+            globeGroup.add(pole);
+            poles.push(pole);
+        });
+
+        // --- RAYCASTING ---
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        const canvasContainer = document.getElementById('canvas-container');
+
+        canvasContainer.addEventListener('mousemove', (event) => {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        });
+
+        canvasContainer.addEventListener('click', () => {
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(poles);
+            if (intersects.length > 0) {
+                updateDataPanel(intersects[0].object.userData);
+            }
+        });
+
+        // --- UI UPDATER ---
+        const emptyState = document.getElementById('empty-state');
+        const countryDataPanel = document.getElementById('country-data');
+        const dataName = document.getElementById('data-name');
+        const dataGdp = document.getElementById('data-gdp');
+        const dataRank = document.getElementById('data-rank');
+        const dataGrowth = document.getElementById('data-growth');
+        const dataRegion = document.getElementById('data-region');
+        const dataBar = document.getElementById('data-bar');
+        const exportContainer = document.getElementById('export-container');
+        
+        // Graph Elements
+        const trendPath = document.getElementById('trend-path');
+        const trendArea = document.getElementById('trend-area');
+        const dot1 = document.getElementById('dot1');
+        const dot2 = document.getElementById('dot2');
+        const dot3 = document.getElementById('dot3');
+        const dot4 = document.getElementById('dot4');
+        const dot5 = document.getElementById('dot5');
+
+        function updateDataPanel(data) {
+            emptyState.classList.add('hidden');
+            countryDataPanel.classList.remove('hidden');
+            countryDataPanel.classList.add('flex');
+            
+            dataName.innerText = data.name;
+            dataGdp.innerText = data.gdp;
+            dataRank.innerText = "#" + data.rank;
+            dataGrowth.innerText = data.growth;
+            dataRegion.innerText = data.region;
+            
+            // 1. Color Logic (Red vs Green)
+            const isNegative = data.growth.includes('-');
+            const strokeColor = isNegative ? '#ef4444' : '#4ade80';
+            const gradientId = isNegative ? 'url(#redGradient)' : 'url(#greenGradient)';
+            
+            if(isNegative) {
+                dataGrowth.style.color = '#ef4444'; 
+            } else {
+                dataGrowth.style.color = '#4ade80'; 
+            }
+
+            // 2. Generate Path from Data Points
+            // Scale: X-axis steps: 30, 90, 150, 210, 270
+            const pts = data.safeTrend;
+            const pathStr = `M30 ${pts[0]} L90 ${pts[1]} L150 ${pts[2]} L210 ${pts[3]} L270 ${pts[4]}`;
+            const areaStr = `${pathStr} L270 120 L30 120 Z`;
+
+            // Apply Path
+            trendPath.setAttribute('d', pathStr);
+            trendPath.setAttribute('stroke', strokeColor);
+            
+            // Apply Area
+            trendArea.setAttribute('d', areaStr);
+            trendArea.setAttribute('fill', gradientId);
+
+            // Move Dots
+            dot1.setAttribute('cy', pts[0]);
+            dot2.setAttribute('cy', pts[1]);
+            dot3.setAttribute('cy', pts[2]);
+            dot4.setAttribute('cy', pts[3]);
+            dot5.setAttribute('cy', pts[4]);
+            
+            // Restart Animations
+            trendPath.classList.remove('path-anim');
+            void trendPath.offsetWidth; 
+            trendPath.classList.add('path-anim');
+
+            dataBar.style.width = '0%';
+            setTimeout(() => { dataBar.style.width = data.barWidth; }, 100);
+
+            exportContainer.innerHTML = '';
+            if(data.exports){
+                data.exports.forEach(item => {
+                    const tag = document.createElement('span');
+                    tag.className = 'export-tag';
+                    tag.innerText = item;
+                    exportContainer.appendChild(tag);
+                });
+            }
+        }
+
+        // --- ANIMATION ---
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        
+        canvasContainer.addEventListener('mousedown', () => isDragging = true);
+        window.addEventListener('mouseup', () => isDragging = false);
+        canvasContainer.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const deltaMove = { x: e.offsetX - previousMousePosition.x, y: e.offsetY - previousMousePosition.y };
+                globeGroup.rotation.y += deltaMove.x * 0.005;
+                globeGroup.rotation.x += deltaMove.y * 0.005;
+            }
+            previousMousePosition = { x: e.offsetX, y: e.offsetY };
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if(!isDragging) globeGroup.rotation.y += 0.0005; 
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(poles);
+
+            poles.forEach(p => {
+                p.material.opacity = 0.8;
+                p.material.color.setHex(0x8B5CF6);
+                p.scale.set(1, 1, 1);
+            });
+
+            if (intersects.length > 0) {
+                const hit = intersects[0].object;
+                hit.material.opacity = 1;
+                hit.material.color.setHex(0xFFFFFF);
+                hit.scale.set(1.5, 1, 1.5); 
+                document.body.style.cursor = 'pointer';
+            } else {
+                document.body.style.cursor = 'default';
+            }
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            const w = window.innerWidth * 0.55;
+            const h = window.innerHeight * 0.55;
+            camera.aspect = w / h;
+            camera.updateProjectionMatrix();
+            renderer.setSize(w, h);
+        });
+
+        // --- CHAT LOGIC ---
+        const chatForm = document.getElementById('chat-form');
+        const chatBox = document.getElementById('chat-box');
+        const userInputBox = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        function appendMessage(sender, text) {
+            const isUser = sender === 'User';
+            const align = isUser ? 'items-end ml-auto' : 'items-start';
+            const bubble = isUser ? 'chat-bubble-user text-white' : 'chat-bubble-ai text-gray-200';
+            const labelColor = isUser ? 'text-purple-400' : 'text-purple-400';
+
+            const html = `<div class="flex flex-col ${align} max-w-[90%] animate-[fadeIn_0.3s_ease-out]"><span class="${labelColor} text-xs font-bold mb-2 mx-1 tracking-wider">${sender.toUpperCase()}</span><div class="${bubble} p-6 text-2xl leading-relaxed shadow-lg">${text}</div></div>`;
+            chatBox.insertAdjacentHTML('beforeend', html);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const query = userInputBox.value.trim();
+            if (!query) return;
+
+            appendMessage('User', query);
+            userInputBox.value = '';
+            
+            const loadingId = Date.now();
+            appendMessage('Aura', `<span class="loading-dots">Accessing Neural Database</span>`);
+            sendBtn.disabled = true;
+
+            try {
+                const response = await fetch('/ask', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: query }) 
+                });
+
+                const data = await response.json();
+                chatBox.lastChild.remove();
+
+                if (data.answer) {
+                     appendMessage('Aura', data.answer);
+                } else if(data.response){
+                     appendMessage('Aura', data.response);
+                } else {
+                     appendMessage('Aura', "I could not retrieve the data at this moment.");
+                }
+            } catch (error) {
+                chatBox.lastChild.remove();
+                appendMessage('Aura', `❌ Connection Error: Ensure Flask is running.`);
+                console.error('Fetch error:', error);
+            } finally {
+                sendBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
