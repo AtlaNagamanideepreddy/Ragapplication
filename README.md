@@ -47,7 +47,7 @@ langchain-google-genai \
 faiss-cpu \
 sentence-transformers huggingface-hub \
 pypdf \
-python-dotenv
-4️⃣ Add Environment Variables
-5️⃣ Add Your PDF
-6️⃣ Run the Application
+python-dotenv\n
+4️⃣ Add Environment Variables\n
+5️⃣ Add Your PDF\n
+6️⃣ Run the Application\n
